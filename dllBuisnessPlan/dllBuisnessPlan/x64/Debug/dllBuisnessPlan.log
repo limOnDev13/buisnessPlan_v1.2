@@ -1,4 +1,4 @@
 ﻿  FishArrays.cpp
-E:\visul studio programs\dllBuisnessPlan\dllBuisnessPlan\FishArrays.cpp(27,21): warning C4305: инициализация: усечение из "double" в "float"
-     Создается библиотека E:\visul studio programs\dllBuisnessPlan\x64\Debug\dllBuisnessPlan.lib и объект E:\visul studio programs\dllBuisnessPlan\x64\Debug\dllBuisnessPlan.exp
-  dllBuisnessPlan.vcxproj -> E:\visul studio programs\dllBuisnessPlan\x64\Debug\dllBuisnessPlan.dll
+D:\github\buisnessPlan_v1.2.1\buisnessPlan_v1.2\dllBuisnessPlan\dllBuisnessPlan\FishArrays.cpp(27,21): warning C4305: инициализация: усечение из "double" в "float"
+     Создается библиотека D:\github\buisnessPlan_v1.2.1\buisnessPlan_v1.2\dllBuisnessPlan\x64\Debug\dllBuisnessPlan.lib и объект D:\github\buisnessPlan_v1.2.1\buisnessPlan_v1.2\dllBuisnessPlan\x64\Debug\dllBuisnessPlan.exp
+  dllBuisnessPlan.vcxproj -> D:\github\buisnessPlan_v1.2.1\buisnessPlan_v1.2\dllBuisnessPlan\x64\Debug\dllBuisnessPlan.dll

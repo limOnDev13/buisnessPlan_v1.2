@@ -72,7 +72,86 @@ extern "C" __declspec(dllexport) float daily_work(
 			feedRatio
 		);
 	}
+	//printf("Daily_work works!\n");
 
 	dailyFeedMass = dailyFeedMass / 1000;
 	return dailyFeedMass;
+}
+
+
+extern "C" __declspec(dllexport) float do_daily_work_some_days
+(
+	float* arrayMass,
+	float* arrayMassAccumulationCoefficient,
+	int amountFish,
+	float feedRatio,
+	float* biomass,
+	int amountDays
+)
+{
+	float totalFeedMass = 0.0;
+	for (int i = 0; i < amountDays; i++) {
+		totalFeedMass += daily_work(arrayMass, arrayMassAccumulationCoefficient,
+			amountFish, feedRatio, biomass);
+
+	}
+	return totalFeedMass;
+}
+
+
+extern "C" __declspec(dllexport) int calculate_when_fish_will_be_sold
+(
+	float* arrayMass,
+	float* arrayMassAccumulationCoefficient,
+	int amountFish,
+	float feedRatio,
+	float* biomass,
+	float massComercialFish,
+	int packageValue
+)
+{
+	int amountDays = 0;
+	int amountSoldFish = 0;
+
+	// будем делать ежедневную работу, пока не врастим минимальное оличство рыбы или всю рыбу
+	while ((amountSoldFish < packageValue) && (amountSoldFish != amountFish))
+	{
+		daily_work(arrayMass, arrayMassAccumulationCoefficient,
+			amountFish, feedRatio, biomass);
+		// проверяем, выросло ли достаточно рыбы
+		amountSoldFish = 0;
+		for (int i =0; i < amountFish; i++) 
+		{
+			if (arrayMass[i] >= massComercialFish) amountSoldFish++;
+		}
+		// увелииваем день
+		amountDays++;
+	}
+	// возвращаем количество дней, необходимое для выращивания данной рыбы
+	return amountDays;
+}
+
+
+extern "C" __declspec(dllexport) int calculate_when_density_reaches_limit
+(
+	float* arrayMass,
+	float* arrayMassAccumulationCoefficient,
+	int amountFish,
+	float feedRatio,
+	float* biomass,
+	float maxDensity,
+	float square
+)
+{
+	int amountDays = 0;
+	float currentDensity = *biomass / square;
+
+	while (currentDensity < maxDensity) 
+	{
+		daily_work(arrayMass, arrayMassAccumulationCoefficient,
+			amountFish, feedRatio, biomass);
+		currentDensity = *biomass / square;
+		amountDays++;
+	}
+	return amountDays;
 }

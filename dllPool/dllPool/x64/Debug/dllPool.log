@@ -1,3 +1,4 @@
 ﻿  Source.cpp
-     Создается библиотека E:\visul studio programs\dllPool\x64\Debug\dllPool.lib и объект E:\visul studio programs\dllPool\x64\Debug\dllPool.exp
-  dllPool.vcxproj -> E:\visul studio programs\dllPool\x64\Debug\dllPool.dll
+  LINK : не найден или не выполнена сборка D:\github\buisnessPlan_v1.2.1\buisnessPlan_v1.2\dllPool\x64\Debug\dllPool.dll при последней инкрементной компоновке; выполняется полная компоновка
+     Создается библиотека D:\github\buisnessPlan_v1.2.1\buisnessPlan_v1.2\dllPool\x64\Debug\dllPool.lib и объект D:\github\buisnessPlan_v1.2.1\buisnessPlan_v1.2\dllPool\x64\Debug\dllPool.exp
+  dllPool.vcxproj -> D:\github\buisnessPlan_v1.2.1\buisnessPlan_v1.2\dllPool\x64\Debug\dllPool.dll

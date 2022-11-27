@@ -62,7 +62,7 @@ class FishArray():
         self._amountFishes = 0
         self._arrayFishes = list()
         self._arrayFryPurchases = list()
-        self._dllBuisnessPlan = WinDLL('E:/visul studio programs/dllBuisnessPlan/x64/Debug/dllBuisnessPlan.dll')
+        self._dllBuisnessPlan = WinDLL('D:/github/buisnessPlan_v1.2.1/buisnessPlan_v1.2/dllBuisnessPlan/x64/Debug/dllBuisnessPlan.dll')
 
     def add_biomass(self, date, amountFishes, averageMass):
         # создаем параметры для нормального распределения коэффициентов массонакопления
@@ -132,6 +132,28 @@ class FishArray():
 
         return dailyFeedMass
 
+    def do_daily_work_some_days(self, amountDays):
+        # подготовим переменные для использования ctypes
+        dailyWorkLib = self._dllBuisnessPlan.do_daily_work_some_days
+
+        dailyWorkLib.argtypes = [POINTER(c_float), POINTER(c_float),
+                                 c_int, c_float, POINTER(c_float), c_int]
+        dailyWorkLib.restype = c_float
+
+        # соберем массивы масс и коэффициентов массонакопления
+        arrayMass = assemble_array(self._arrayFishes, self._amountFishes, 2)
+        arrayMassAccumulationCoefficient = assemble_array(self._arrayFishes,
+                                                          self._amountFishes, 1)
+
+        totalFeedMass = dailyWorkLib(arrayMass, arrayMassAccumulationCoefficient,
+                                     self._amountFishes, self._feedRatio,
+                                     byref(self._biomass), amountDays)
+
+        for i in range(self._amountFishes):
+            self._arrayFishes[i][2] = arrayMass[i]
+
+        return totalFeedMass
+
     def print_array_fishes(self):
         print('biomass = ', self._biomass.value)
         print(self._arrayFishes)
@@ -144,6 +166,55 @@ class FishArray():
 
     def get_array_fish(self):
         return self._arrayFishes
+
+    def calculate_when_fish_will_be_sold(self, massComercialFish,
+                                         singleVolume):
+        # подготовим переменные для использования ctypes
+        calculateLib = self._dllBuisnessPlan.calculate_when_fish_will_be_sold
+
+        calculateLib.argtypes = [POINTER(c_float), POINTER(c_float),
+                                 c_int, c_float, POINTER(c_float),
+                                 c_float, c_int]
+        calculateLib.restype = c_int
+
+        # соберем массивы масс и коэффициентов массонакопления
+        arrayMass = assemble_array(self._arrayFishes, self._amountFishes, 2)
+        arrayMassAccumulationCoefficient = assemble_array(self._arrayFishes,
+                                                          self._amountFishes, 1)
+
+        amountDays = calculateLib(arrayMass, arrayMassAccumulationCoefficient,
+                                     self._amountFishes, self._feedRatio,
+                                     byref(self._biomass), massComercialFish,
+                                  singleVolume)
+
+        for i in range(self._amountFishes):
+            self._arrayFishes[i][2] = arrayMass[i]
+
+        return amountDays
+
+    def calculate_when_density_reaches_limit(self, maxDensity, square):
+        # подготовим переменные для использования ctypes
+        calculateLib = self._dllBuisnessPlan.calculate_when_density_reaches_limit
+
+        calculateLib.argtypes = [POINTER(c_float), POINTER(c_float),
+                                 c_int, c_float, POINTER(c_float),
+                                 c_float, c_float]
+        calculateLib.restype = c_int
+
+        # соберем массивы масс и коэффициентов массонакопления
+        arrayMass = assemble_array(self._arrayFishes, self._amountFishes, 2)
+        arrayMassAccumulationCoefficient = assemble_array(self._arrayFishes,
+                                                          self._amountFishes, 1)
+
+        amountDays = calculateLib(arrayMass, arrayMassAccumulationCoefficient,
+                                     self._amountFishes, self._feedRatio,
+                                     byref(self._biomass), maxDensity,
+                                  square)
+
+        for i in range(self._amountFishes):
+            self._arrayFishes[i][2] = arrayMass[i]
+
+        return amountDays
 
 
 class Pool():
@@ -186,7 +257,7 @@ class Pool():
         self.feeding = list()
         self.arrayFryPurchases = list()
         self.price = price
-        self._dllPool = WinDLL("E:/visul studio programs/dllPool/x64/Debug/dllPool.dll")
+        self._dllPool = WinDLL("D:/github/buisnessPlan_v1.2.1/buisnessPlan_v1.2/dllPool/x64/Debug/dllPool.dll")
 
     def add_new_biomass(self, amountFishes, averageMass, date):
         self.arrayFishes.add_biomass(date, amountFishes, averageMass)
@@ -247,6 +318,20 @@ class Pool():
 
     def update_density(self):
         self.currentDensity = self.arrayFishes.get_biomass() / self.square
+
+    def calculate_when_fishArray_will_be_sold(self):
+        testFishArray = copy.deepcopy(self.arrayFishes)
+        amountDays = testFishArray.calculate_when_fish_will_be_sold(self.massComercialFish,
+                                                                self.singleVolumeFish)
+        return [amountDays, testFishArray.get_biomass()]
+
+    def calculate_when_density_reaches_limit(self):
+        testFishArray = copy.deepcopy(self.arrayFishes)
+        amountDays = testFishArray.calculate_when_density_reaches_limit(self.maxPlantingDensity,
+                                                                        self.square)
+        testCurrentDensity = testFishArray.get_biomass() / self.square
+
+        return [amountDays, testFishArray.get_biomass(), testCurrentDensity]
 
 
 class CWSD():
@@ -320,6 +405,15 @@ class CWSD():
         return [feedCost, fryCost, feedCost + fryCost]
 
 
+class Opimization():
+    def calculate_optimized_amount_fish(self, amountDays, startAmount, step,
+                                        averageMass, square, maxDensity):
+        amountFish = startAmount
+        currentDensity = 0
+
+        while(currentDensity <= maxDensity):
+            testPool = Pool(square, 10, 1000, 350, maxDensity)
+            testPool.add_new_biomass(amountFish, averageMass, date.date.today())
 
 
 # проверка Pool
@@ -352,3 +446,63 @@ x.update_biomass()
 print('feedMass = ', feedMass)
 x.print_array_fishes()
 '''
+
+# проверка do_daily_work_some_days
+'''
+x = FishArray()
+x.add_biomass(date.date.today(), 5, 10)
+x.add_biomass(date.date.today(), 5, 200)
+
+y = FishArray()
+y.add_biomass(date.date.today(), 5, 10)
+y.add_biomass(date.date.today(), 5, 200)
+
+amountDays = 10
+feedMassY = 0
+feedMassX = x.do_daily_work_some_days(amountDays)
+
+for i in range(amountDays):
+    feedMassY += y.daily_work()
+
+x.update_biomass()
+print('feedMass = ', feedMassX)
+x.print_array_fishes()
+
+y.update_biomass()
+print('feedMass = ', feedMassY)
+y.print_array_fishes()
+'''
+
+# проверка calculate_when_fish_will_be_sold
+'''
+x = Pool(5, 2)
+x.add_new_biomass(3, 300, date.date.today())
+x.arrayFishes.print_array_fishes()
+result = x.calculate_when_fishArray_will_be_sold()
+x.arrayFishes.print_array_fishes()
+amountDays = result[0]
+print(result)
+
+day = date.date.today()
+for i in range(amountDays):
+    x.arrayFishes.daily_work()
+x.arrayFishes.print_array_fishes()
+'''
+
+# проверка calculate_when_density_reaches_limit
+'''
+x = Pool(5, 2)
+x.add_new_biomass(3, 300, date.date.today())
+x.arrayFishes.print_array_fishes()
+
+result = x.calculate_when_density_reaches_limit()
+print(result)
+
+for i in range(result[0]):
+    x.arrayFishes.daily_work()
+
+x.update_density()
+print([x.arrayFishes.get_biomass(), x.currentDensity])
+'''
+
+
