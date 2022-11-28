@@ -165,9 +165,25 @@ class FishArray():
 
         return totalFeedMass
 
-    def print_array_fishes(self):
+    def print_array_fishes(self, amountItems):
         print('biomass = ', self._biomass.value)
-        #print(self._arrayFishes)
+        result = ''
+        if (self._amountFishes != 0):
+            for i in range(amountItems):
+                result += str(self._arrayFishes[i][2]) + ' '
+        else:
+            result += 'В бассейне нет рыбы'
+        print(result)
+
+    def print_any_array(self, array, amountItems):
+        result = ''
+        if (len(array) != 0):
+            for i in range(amountItems):
+                result += str(array[i]) + ' '
+        else:
+            result += 'В бассейне нет рыбы'
+        print(result)
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
     def get_biomass(self):
         return self._biomass.value
@@ -179,7 +195,7 @@ class FishArray():
         return self._arrayFishes
 
     def calculate_when_fish_will_be_sold(self, massComercialFish,
-                                         singleVolume):
+                                         singleVolume, fishArray):
         # подготовим переменные для использования ctypes
         calculateLib = self._dllBuisnessPlan.calculate_when_fish_will_be_sold
 
@@ -189,8 +205,8 @@ class FishArray():
         calculateLib.restype = c_int
 
         # соберем массивы масс и коэффициентов массонакопления
-        arrayMass = assemble_array(self._arrayFishes, self._amountFishes, 2)
-        arrayMassAccumulationCoefficient = assemble_array(self._arrayFishes,
+        arrayMass = assemble_array(fishArray, self._amountFishes, 2)
+        arrayMassAccumulationCoefficient = assemble_array(fishArray,
                                                           self._amountFishes, 1)
 
         amountDays = calculateLib(arrayMass, arrayMassAccumulationCoefficient,
@@ -263,7 +279,7 @@ class FishArray():
         if (self._amountFishes != 0):
             result = self._biomass.value / self._amountFishes * 1000
         else:
-            result = 0
+            result = 0.0
         return result
 
     def sort_fish_array(self):
@@ -374,9 +390,9 @@ class Pool():
         self.currentDensity = self.arrayFishes.get_biomass() / self.square
 
     def calculate_when_fishArray_will_be_sold(self, amountFishForSale):
-        testFishArray = copy.deepcopy(self.arrayFishes)
-        amountDays = testFishArray.calculate_when_fish_will_be_sold(self.massComercialFish,
-                                                                amountFishForSale)
+        testFishArray = copy.deepcopy(self.arrayFishes.get_array_fish())
+        amountDays = self.arrayFishes.calculate_when_fish_will_be_sold(self.massComercialFish,
+                                                                amountFishForSale, testFishArray)
         return amountDays
 
     def calculate_when_density_reaches_limit(self):
@@ -469,9 +485,11 @@ class CWSD():
         return [feedCost, fryCost, feedCost + fryCost]
 
     def count_how_many_days_you_need_to_work_and_do_it(self, poolNumber, startDay):
-        amountDaysForWork = self.pools[poolNumber].calculate_when_fishArray_will_be_sold(self.pools[poolNumber].arrayFishes.get_amount_fishes())
-        for i in range(self.amountGroups):
-            self.pools[poolNumber].daily_growth_some_days(amountDaysForWork, startDay)
+        amountDaysForWork = self.pools[poolNumber].calculate_when_fishArray_will_be_sold(
+            self.pools[poolNumber].arrayFishes.get_amount_fishes())
+        day = startDay
+        for i in range(amountDaysForWork):
+            self.total_daily_work(day)
         return amountDaysForWork
 
     def move_fish_from_one_pool_to_another(self, onePoolNumber, anotherPoolNumber, amountMovedFish):
@@ -486,9 +504,20 @@ class CWSD():
         # теперь в новом бассейне плавает малек с индексом из предыдущего басса
         self.pools[anotherPoolNumber].indexFry = self.pools[onePoolNumber].indexFry
 
-    def print_info(self):
+    def total_daily_work(self, day):
+        for i in range(self.amountPools):
+            self.pools[i].daily_growth(day)
+
+    def print_info(self, amoutItemes):
         for i in range(self.amountGroups):
             print(i, ' pool, amountFish = ', self.pools[i].arrayFishes.get_amount_fishes(), ', biomass = ', self.pools[i].arrayFishes.get_biomass(), ', averageMass = ', self.pools[i].arrayFishes.calculate_average_mass())
+            result = ''
+            if (self.pools[i].arrayFishes.get_amount_fishes() != 0):
+                for j in range(amoutItemes):
+                    result += str(self.pools[i].arrayFishes.get_array_fish()[j])
+            else:
+                result += 'Рыбы нет'
+            print(result)
         print('___________________________________')
 
     def start_script(self, masses, reserve, startDate, feedRatio):
@@ -506,22 +535,29 @@ class CWSD():
         self.pools[self.amountGroups - 1].indexFry = self.amountGroups - 1
         self.pools[self.amountGroups - 1].add_new_biomass(2 * mainVolumeFish, masses[self.amountGroups - 1], startDate)
 
-        self.print_info()
+        self.print_info(3)
+
 
         # продадим всю рыбу из 0 бассейна
         amountDays = self.count_how_many_days_you_need_to_work_and_do_it(0, startDate)
 
-        self.print_info()
+        print('продадим всю рыбу из 0 бассейна')
+        print()
+        self.print_info(3)
 
         # переместим рыбу из 3 бассейна в 0, изменим индекс зарыбления 0 бассейна
         self.move_fish_from_one_pool_to_another(3, 0, mainVolumeFish)
 
-        self.print_info()
+        print('переместим рыбу из 3 бассейна в 0, изменим индекс зарыбления 0 бассейна')
+        print()
+        self.print_info(3)
 
         # продадим всю рыбу из 1 бассейна
         day = self.count_how_many_days_you_need_to_work_and_do_it(1, startDate + date.timedelta(amountDays))
 
-        self.print_info()
+        print('продадим всю рыбу из 1 бассейна')
+        print()
+        self.print_info(3)
 
         # добавим новую рыбу в 1 бассейн в каличестве 2 * mainVolumeFish
         # чтобы это сделать, узнаем максимально допустимый средний вес.
@@ -732,6 +768,23 @@ x = Opimization()
 result3 = x.calculate_max_average_mass(5, 40, amountGrowthDays, 10, 10, 1000, 1.5)
 print(result3)
 '''
+
 cwsd = CWSD(5, 4, 4)
 masses = [100, 70, 50, 20]
 cwsd.start_script(masses, 20, date.date.today(), 1.5)
+
+# проверка total_daily_work
+'''
+cwsd = CWSD(5, 4, 4)
+cwsd.print_info(3)
+masses = [20, 50, 70, 100]
+for i in range(4):
+    cwsd.add_biomass_in_pool(i, 100, masses[i], date.date.today())
+cwsd.print_info(3)
+
+day = date.date.today()
+for i in range(100):
+    cwsd.total_daily_work(day)
+    day += date.timedelta(1)
+cwsd.print_info(3)
+'''
