@@ -72,7 +72,6 @@ extern "C" __declspec(dllexport) float daily_work(
 			feedRatio
 		);
 	}
-	//printf("Daily_work works!\n");
 
 	dailyFeedMass = dailyFeedMass / 1000;
 	return dailyFeedMass;
@@ -154,4 +153,48 @@ extern "C" __declspec(dllexport) int calculate_when_density_reaches_limit
 		amountDays++;
 	}
 	return amountDays;
+}
+
+
+extern "C" __declspec(dllexport) int calculate_how_many_fish_needs
+(
+	float* arrayMass1,
+	float* arrayMass2,
+	float* arrayMassAccumulationCoefficient,
+	int amountFish,
+	float feedRatio,
+	float* biomass1,
+	float* biomass2,
+	float massComercialFish,
+	int packageValue,
+	float maxDensity,
+	float square,
+	int* resultAmountsDays
+
+)
+{
+	int amountDayWhenFishGrowUp = calculate_when_fish_will_be_sold(arrayMass1, arrayMassAccumulationCoefficient,
+		amountFish, feedRatio, biomass1, massComercialFish, packageValue);
+	int amountDayWhenFishReachLimit = calculate_when_density_reaches_limit(arrayMass2, arrayMassAccumulationCoefficient,
+		amountFish, feedRatio, biomass2, maxDensity, square);
+	int result = amountDayWhenFishReachLimit - amountDayWhenFishGrowUp;
+	resultAmountsDays[0] = amountDayWhenFishGrowUp;
+	resultAmountsDays[1] = amountDayWhenFishReachLimit;
+	return result;
+}
+
+extern "C" __declspec(dllexport) float calculate_density_after_some_days
+(
+	float* arrayMass,
+	float* arrayMassAccumulationCoefficient,
+	int amountFish,
+	float feedRatio,
+	float* biomass,
+	int amountDays,
+	float square
+)
+{
+	do_daily_work_some_days(arrayMass, arrayMassAccumulationCoefficient, amountFish, feedRatio, biomass, amountDays);
+	float resultDensity = *biomass / square;
+	return resultDensity;
 }
