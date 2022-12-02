@@ -92,17 +92,6 @@ class FishArray():
         self._amountFishes += amountNewFishes
 
     def remove_biomass(self, amountFishToRemove):
-        '''
-        result = ''
-        amountTrue = 0
-        for i in range(amountIndexes):
-            if (indexes[i]):
-                result += 'True '
-                amountTrue += 1
-            else:
-                result += 'False '
-        print(result)
-        '''
         self.sort_fish_array()
         removedFishes = list()
         for i in range(amountFishToRemove):
@@ -215,7 +204,7 @@ class FishArray():
                                   singleVolume)
 
         for i in range(self._amountFishes):
-            self._arrayFishes[i][2] = arrayMass[i]
+            fishArray[i][2] = arrayMass[i]
 
         return amountDays
 
@@ -324,6 +313,7 @@ class Pool():
     indexFry = 0
     # начальная масса зарыбления
     startMass = 0
+    procentOnDepreciationEquipment = 10
 
 
     def __init__(self, square, startMass, singleVolumeFish=100, price=1000,
@@ -358,7 +348,7 @@ class Pool():
         self.feeding.append([day, todayFeedMass])
 
         # проверяем, есть ли рыба на продажу, и если есть - продаем
-        self.sell_fish(day)
+        self.sell_fish2(day)
 
     def daily_growth_some_days(self, amountDays, startDay):
         day = startDay
@@ -413,6 +403,29 @@ class Pool():
             # обновим density
             self.currentDensity = self.arrayFishes.get_biomass() / self.square
 
+    def sell_fish2(self, day):
+        amountFishForSale = 0
+        for i in range(self.arrayFishes.get_amount_fishes()):
+            if (self.arrayFishes.get_array_fish()[i][2] >= self.massComercialFish):
+                amountFishForSale += 1
+
+        if ((amountFishForSale >= self.singleVolumeFish) or
+                (amountFishForSale == self.arrayFishes.get_amount_fishes())):
+            print('Изначальная биомасса ', self.arrayFishes.get_biomass())
+            soldFish = self.arrayFishes.remove_biomass(amountFishForSale)
+            # продаем выросшую рыбу и сохраняем об этом инфу
+            soldBiomass = 0
+            amountSoldFish = 0
+            for i in range(len(soldFish)):
+                soldBiomass += soldFish[i][2] / 1000
+                amountSoldFish += 1
+
+            print(day, ' продано биомассы: ', soldBiomass)
+            revenue = soldBiomass * self.price
+
+            self.arraySoldFish.append([day, amountSoldFish, soldBiomass, revenue])
+            # обновим density
+            self.currentDensity = self.arrayFishes.get_biomass() / self.square
 
     def update_density(self):
         self.currentDensity = self.arrayFishes.get_biomass() / self.square
@@ -458,10 +471,20 @@ class CWSD():
     onePoolSquare = 0
     pools = list()
     profit = list()
+    salary = 50000
+    amountWorkers = 2
+    percentageIncomeOnDepreciationEquipment = 10
+    arrayDepositsForDepreciationEquipment = list()
 
-    def __init__(self, poolSquare, masses, amountPools=8, amountGroups=4, fishPrice=1000,
+
+    def __init__(self, poolSquare, masses, salary=50000, amountWorkers=2,
+                 amountPools=8, amountGroups=4, fishPrice=1000,
                  feedPrice=260, equipmentCapacity=5.5, rent=70000,
-                 costElectricityPerHour=3.17, temperature=21):
+                 costElectricityPerHour=3.17, temperature=21, percentageIncomeOnDepreciationEquipment=20):
+        self.salary = salary
+        self.percentageIncomeOnDepreciationEquipment = percentageIncomeOnDepreciationEquipment
+        self.arrayDepositsForDepreciationEquipment = list()
+        self.amountWorkers = amountWorkers
         self.onePoolSquare = poolSquare
         self.amountGroups = amountGroups
         self.amountPools = amountPools
@@ -473,6 +496,7 @@ class CWSD():
         self.feedPrice = feedPrice
         self.pools = list()
         self.profit = list()
+        self.arrayDepreciationEquipment = 0
 
         for i in range(amountPools):
             pool = Pool(poolSquare, masses[i])
@@ -486,32 +510,36 @@ class CWSD():
         amountDays = deltaTime.days
         electrisityCost = amountDays * 24 * self.equipmentCapacity * self.costElectricityPerHour
         rentCost = (int(amountDays / 30)) * self.rent
+        salaryCost = (int(amountDays / 30)) * self.salary * self.amountWorkers
 
         print('За этот период траты на аренду составят ', rentCost, 'p')
+        print('Расходы на заработную плату составят ', salaryCost, 'p')
         print('Траты на электричество составят ', electrisityCost, 'p')
 
-        return [rentCost, electrisityCost, rentCost + electrisityCost]
+        return [rentCost, electrisityCost, rentCost + electrisityCost + salaryCost]
+
+    def _calculate_cost_fry(self, startDate, endDate):
+        costFry = 0
+        for i in range(self.amountGroups):
+            for j in range(len(self.pools[i].arrayFryPurchases)):
+                # [date, amountFishes, averageMass, totalPrice]
+                if (startDate <= self.pools[i].arrayFryPurchases[j][0] <= endDate):
+                    costFry += self.pools[i].arrayFryPurchases[j][3]
+
+        return costFry
+
+    def _calculate_cost_feed(self, startDate, endDate):
+        costFeed = 0
+        for i in range(self.amountGroups):
+            for j in range(len(self.pools[i].feeding)):
+                if (startDate <= self.pools[i].feeding[j][0] <= endDate):
+                    costFeed += self.pools[i].feeding[j][1]
+
+        return costFeed
 
     def _calculate_biological_costs(self, startingDate, endingDate):
-        day = startingDate
-        feedMass = 0
-        fryCost = 0
-
-        while(day < endingDate):
-            for i in range(self.amountGroups):
-                # подсчет затрат на корма
-                startingDayInThisPool = self.pools[i].feeding[0][0]
-                if (day >= startingDayInThisPool):
-                    amountDaysFeedingInThisPool = (day - startingDayInThisPool).days
-                    feedMass += self.pools[i].feeding[amountDaysFeedingInThisPool][1]
-
-                # подсчет затрат на мальков.
-                for j in range(len(self.pools[i].arrayFryPurchases)):
-                    if (day == self.pools[i].arrayFryPurchases[j][0]):
-                        fryCost += self.pools[i].arrayFryPurchases[j][3]
-                    elif (day > self.pools[i].arrayFryPurchases[j][0]):
-                        break
-            day += date.timedelta(1)
+        feedMass = self._calculate_cost_feed(startingDate, endingDate)
+        fryCost = self._calculate_cost_fry(startingDate, endingDate)
 
         feedCost = feedMass * self.feedPrice
 
@@ -519,6 +547,24 @@ class CWSD():
         print('Будет куплено малька на ', fryCost, 'p')
 
         return [feedCost, fryCost, feedCost + fryCost]
+
+    def _calculate_deposits_for_depreciation_equipment(self):
+        # [day, amountSoldFish, soldBiomass, revenue]
+        for i in range(self.amountGroups):
+            for j in range(len(self.pools[i].arraySoldFish)):
+                x = self.pools[i].arraySoldFish[j][3] * self.percentageIncomeOnDepreciationEquipment / 100
+                self.arrayDepositsForDepreciationEquipment.append([self.pools[i].arraySoldFish[j][0], x])
+
+    def _calculate_safe_deposits_in_period(self, startDate, endDate):
+        result = 0
+
+        for i in range(len(self.arrayDepositsForDepreciationEquipment)):
+            if (startDate <= self.arrayDepositsForDepreciationEquipment[i][0] <= endDate):
+                result += self.arrayDepositsForDepreciationEquipment[i][1]
+
+        print('За этот период на амортизацию оборудования будет отложено ', result, 'p')
+
+        return result
 
     def _calculate_profit(self, startingDate, endingDate):
         totalRevenue = 0
@@ -539,8 +585,11 @@ class CWSD():
 
         bioCost = self._calculate_biological_costs(startingDate, endingDate)
         techCost = self._calculate_technical_costs(startingDate, endingDate)
-        print('Чистая прибыль (без учета тепла, армотизации оборудования, налогов и заработной платы) составит ',
-              totalRevenue - bioCost[2] - techCost[2], 'p')
+        totalRevenue -= bioCost[2] + techCost[2]
+        totalRevenue -= self._calculate_safe_deposits_in_period(startingDate, endingDate)
+        print('Чистая прибыль (без учета тепла, налогов и заработной платы) составит ',
+              totalRevenue, 'p')
+        return totalRevenue
 
     def count_how_many_days_you_need_to_work_and_do_it(self, poolNumber, startDay):
         amountDaysForWork = self.pools[poolNumber].calculate_when_fishArray_will_be_sold(
@@ -548,6 +597,7 @@ class CWSD():
         day = startDay
         for i in range(amountDaysForWork):
             self.total_daily_work(day)
+            day += date.timedelta(1)
         return amountDaysForWork
 
     def move_fish_from_one_pool_to_another(self, onePoolNumber, anotherPoolNumber, amountMovedFish):
@@ -574,6 +624,7 @@ class CWSD():
                   ', averageMass = ', self.pools[i].arrayFishes.calculate_average_mass())
             result = ''
             if (self.pools[i].arrayFishes.get_amount_fishes() != 0):
+                # выпишем данные о первых amoutItemes рыбках
                 for j in range(amoutItemes):
                     result += str(self.pools[i].arrayFishes.get_array_fish()[j])
             else:
@@ -581,51 +632,114 @@ class CWSD():
             print(result)
         print('___________________________________')
 
-    def _find_pool_with_this_amount_fish(self, neededAmountFish):
-        flag = False
-        result = 0
+    def find_optimal_fry_mass(self, minMass, deltaMass):
+        minAverageMass = 10000
         for i in range(self.amountGroups):
-            if (self.pools[i].arrayFishes.get_amount_fishes() == neededAmountFish):
-                flag = True
-                result = i
-        if (not flag):
-            max = 0
-            for i in range(self.amountGroups):
-                if (self.pools[i].arrayFishes.get_amount_fishes() > max):
-                    max = self.pools[i].arrayFishes.get_amount_fishes()
-                    result = i
+            if (minAverageMass > self.pools[i].arrayFishes.calculate_average_mass()):
+                minAverageMass = self.pools[i].arrayFishes.calculate_average_mass()
+
+        result = (int((minAverageMass - deltaMass) / 10)) * 10
+        if (result < minMass):
+            result = minMass
+
         return result
 
-    def _find_pools_with_this_indexFry(self, indexFry):
-        numbersPools = list()
-        for i in range(self.amountGroups):
-            if (self.pools[i].indexFry == indexFry):
-                numbersPools.append(i)
-        return numbersPools
-
-    def _find_pool_with_min_averageMass(self, numbersPools):
-        result = 0
-        if (len(numbersPools) == 2):
-            if (self.pools[numbersPools[0]].arrayFishes.calculate_average_mass() <
-                    self.pools[numbersPools[1]].arrayFishes.calculate_average_mass()):
-                result = numbersPools[0]
-            else:
-                result = numbersPools[1]
-        elif (len(numbersPools) == 1):
-            result = numbersPools[0]
-        return result
-
-    def _find_empty_pool_with_max_start_mass(self):
-        max = 0
-        result = -1
+    def find_empty_pool_and_add_one_volume(self, volumeFish, newIndex, day):
+        maxAverageMass = 0
+        emptyPool = 0
         for i in range(self.amountGroups):
             if ((self.pools[i].arrayFishes.get_amount_fishes() == 0) and
-                    (self.pools[i].startMass > max)):
-                max = self.pools[i].startMass
-                result = i
-        return result
+                    (self.pools[i].startMass > maxAverageMass)):
+                maxAverageMass = self.pools[i].startMass
+                emptyPool = i
 
-    def start_script(self, masses, reserve, startDate):
+        optimalMass = self.find_optimal_fry_mass(20, 20)
+        self.pools[emptyPool].add_new_biomass(volumeFish, optimalMass, newIndex, day)
+
+        print('Добавим ', volumeFish, ' штук рыбы в ', emptyPool, ' бассейн  ', day)
+        self.print_info(3)
+        print()
+
+    def find_empty_pool_and_add_twice_volume(self, volumeFish, newIndex, day):
+        emptyPool = 0
+        for i in range(self.amountGroups):
+            if (self.pools[i].arrayFishes.get_amount_fishes() == 0):
+                emptyPool = i
+                break
+
+        optimalMass = self.find_optimal_fry_mass(20, 20)
+        self.pools[emptyPool].add_new_biomass(2 * volumeFish, optimalMass, newIndex, day)
+
+        print('Добавим ', 2 * volumeFish, ' штук рыбы в ', emptyPool, ' бассейн  ', day)
+        self.print_info(3)
+        print()
+
+    def find_pool_with_twice_volume_and_move_half_in_empty(self, day):
+        overflowingPool = 0
+        emptyPool = 0
+        maxAmount = 0
+        volumeFish = 0
+        maxAverageMass = 0
+        for i in range(self.amountGroups):
+            if (self.pools[i].arrayFishes.get_amount_fishes() > maxAmount):
+                overflowingPool = i
+                maxAmount = self.pools[i].arrayFishes.get_amount_fishes()
+
+            volumeFish = int(maxAmount / 2)
+
+            if ((self.pools[i].arrayFishes.get_amount_fishes() == 0) and
+                    (maxAverageMass < self.pools[i].startMass)):
+                emptyPool = i
+                maxAverageMass = self.pools[i].startMass
+
+        self.move_fish_from_one_pool_to_another(overflowingPool, emptyPool, volumeFish)
+
+        print('Переместим из ', overflowingPool, ' бассейна в ', emptyPool,
+              ' бассейн ', volumeFish, ' штук рыбы', day)
+        self.print_info(3)
+        print()
+
+    def grow_up_fish_in_one_pool(self, startDay):
+        flag = True
+        day = startDay
+
+        while (flag):
+            self.total_daily_work(day)
+            day += date.timedelta(1)
+            for i in range(self.amountGroups):
+                if (self.pools[i].arrayFishes.get_amount_fishes() == 0):
+                    flag = False
+                    break
+
+        print('Вырастим и продадим всю рыбу в одном бассейне', day)
+        self.print_info(3)
+        print()
+
+        return day
+
+    def grow_up_fish_in_two_pools(self, startDay):
+        flag = True
+        day = startDay
+
+        while(flag):
+            self.total_daily_work(day)
+            day += date.timedelta(1)
+
+            amountEmptyFools = 0
+            for i in range(self.amountGroups):
+                if (self.pools[i].arrayFishes.get_amount_fishes() == 0):
+                    amountEmptyFools += 1
+
+            if (amountEmptyFools == 2):
+                flag = False
+
+        print('Вырастим и продадим всю рыбу в двух бассейнах', day)
+        self.print_info(3)
+        print()
+
+        return day
+
+    def start_script1(self, masses, reserve, startDate):
         optimization = Opimization()
         optimalQuantity = optimization.calculate_optimized_amount_fish_in_commercial_pool(self.onePoolSquare,
                                                                                           masses[self.amountGroups - 1],
@@ -641,166 +755,89 @@ class CWSD():
         self.pools[self.amountGroups - 1].add_new_biomass(2 * mainVolumeFish, masses[self.amountGroups - 1],
                                                           self.amountGroups - 1, startDate)
 
+        day = startDate
+        print('Начинаем ', day, ' c таким зарыблением')
         self.print_info(3)
-
-
-        # продадим всю рыбу из 0 бассейна
-        amountDays = self.count_how_many_days_you_need_to_work_and_do_it(0, startDate)
-
-        print('продадим всю рыбу из 0 бассейна ', startDate + date.timedelta(amountDays))
         print()
-        self.print_info(3)
 
-        # переместим рыбу из 3 бассейна в 0, изменим индекс зарыбления 0 бассейна
-        self.move_fish_from_one_pool_to_another(3, 0, mainVolumeFish)
+        # вырастим рыбу в 0 бассейне
+        day = self.grow_up_fish_in_one_pool(day)
 
-        print('переместим рыбу из 3 бассейна в 0, изменим индекс зарыбления 0 бассейна ',
-              startDate + date.timedelta(amountDays))
+        # переместим рыбу из 3 в 0 бассейн
+        self.find_pool_with_twice_volume_and_move_half_in_empty(day)
+
+        # вырастим рыбу в 1 бассейне
+        day = self.grow_up_fish_in_one_pool(day)
+
+        currentIndex = 4
+
+        # добавим рыбу 2 * mainValue в 1 бассейн
+        self.find_empty_pool_and_add_twice_volume(mainVolumeFish, currentIndex, day)
+        currentIndex += 1
+
+        # вырастим рыбу в 2 бассейне
+        day = self.grow_up_fish_in_one_pool(day)
+
+        return [mainVolumeFish, day, currentIndex]
+
+    def main_script1(self, mainValue, day, previousIndex):
+        # переместим из переполненного бассейна в пустой половину
+        self.find_pool_with_twice_volume_and_move_half_in_empty(day)
+
+        # вырастим рыбу в 2 бассейнах
+        day = self.grow_up_fish_in_two_pools(day)
+
+        currentIndex = previousIndex
+        # добавим mainValue штук рыб в пустой бассейн
+        self.find_empty_pool_and_add_one_volume(mainValue, currentIndex, day)
+        currentIndex += 1
+
+        # добавим 2 * mainValue штук рыб в другой пустой бассейн
+        self.find_empty_pool_and_add_twice_volume(mainValue, currentIndex, day)
+        currentIndex += 1
+
+        # вырастим рыбу в 2 бассейнах
+        day = self.grow_up_fish_in_two_pools(day)
+
+        # переместим из переполненного бассейна в пустой
+        self.find_pool_with_twice_volume_and_move_half_in_empty(day)
+
+        # добавим 2 * mainValue штук рыб в другой пустой бассейн
+        self.find_empty_pool_and_add_twice_volume(mainValue, currentIndex, day)
+        currentIndex += 1
+
+        # вырастим рыбу в 1 бассейне
+        day = self.grow_up_fish_in_one_pool(day)
+
+        return [mainValue, day, currentIndex]
+
+    def main_work1(self, startDate, endDate, masses, reserve):
+        resultStartScript = self.start_script1(masses, reserve, startDate)
+        print('Начинается main_script1 в 1 раз!!!!!!!!!!!!!!!!!!!!!!!!')
         print()
-        self.print_info(3)
+        day = resultStartScript[1]
+        # [mainVolumeFish, day, currentIndex]
+        resultMainScript = self.main_script1(resultStartScript[0],
+                                             resultStartScript[1],
+                                             resultStartScript[2])
 
-        # продадим всю рыбу из 1 бассейна
-        amountDays += self.count_how_many_days_you_need_to_work_and_do_it(1, startDate + date.timedelta(amountDays))
-
-        print('продадим всю рыбу из 1 бассейна ', startDate + date.timedelta(amountDays))
-        print()
-        self.print_info(3)
-
-        # добавим новую рыбу в 1 бассейн в каличестве 2 * mainVolumeFish
-        # чтобы это сделать, узнаем максимально допустимый средний вес.
-        # Чтобы узнать максимальный вес, нужно знать время до следующей продажи
-        '''
-        days = self.pools[2].calculate_when_fishArray_will_be_sold(self.pools[2].arrayFishes.get_amount_fishes())
-        maxAverageMass = optimization.calculate_max_average_mass(self.onePoolSquare, self.pools[0].maxPlantingDensity,
-                                                                 days, 10, 5, 2 * mainVolumeFish, feedRatio)
-        if (maxAverageMass < self.pools[1].startMass):
-            self.pools[1].startMass = maxAverageMass
-        '''
-        self.pools[1].add_new_biomass(2 * mainVolumeFish, self.pools[1].startMass, 4,
-                                      startDate + date.timedelta(amountDays))
-        print('Посадили ', 2 * mainVolumeFish, ' штук рыбы в 1 бассейн ', startDate + date.timedelta(amountDays))
-        print()
-        self.print_info(3)
-
-        # вырастим и продадим всю рыбу во 2 бассейне
-        amountDays += self.count_how_many_days_you_need_to_work_and_do_it(2, startDate + date.timedelta(amountDays))
-
-        print('продадим всю рыбу из 2 бассейна ', startDate + date.timedelta(amountDays))
-        print()
-        self.print_info(3)
-        return [mainVolumeFish, amountDays]
-
-    def main_script(self, mainValue, numberDaysThatHavePassed, startDate, startMinIndexFry, startMaxIndexFry):
-        amountDays = numberDaysThatHavePassed
-        currentMinIndexFry = startMinIndexFry
-        currentMaxIndexFry = startMaxIndexFry
-
-        # пересадим половину рыбы из бассейна с двойным количеством рыбы в пустой
-        emptyPoolIndex = self._find_pool_with_this_amount_fish(0)
-        overflowingPoolIndex = self._find_pool_with_this_amount_fish(mainValue * 2)
-        self.move_fish_from_one_pool_to_another(overflowingPoolIndex, emptyPoolIndex, mainValue)
-
-        print('переместим рыбу из ', overflowingPoolIndex, ' бассейна в', emptyPoolIndex,
-              ' и изменим индекс зарыбления в пустом бассейне ', startDate + date.timedelta(amountDays))
-        print()
-        self.print_info(3)
-
-        # вырастим и продадим рыбу в 2-ух бассейнах
-        numbersPools = self._find_pools_with_this_indexFry(currentMinIndexFry)
-        poolWithMinAverageMass = self._find_pool_with_min_averageMass(numbersPools)
-        amountDays += self.count_how_many_days_you_need_to_work_and_do_it(poolWithMinAverageMass,
-                                                                          startDate + date.timedelta(amountDays))
-        currentMinIndexFry += 1
-
-        print('продадим всю рыбу из ', numbersPools, ' бассейнов ', startDate + date.timedelta(amountDays))
-        print()
-        self.print_info(3)
-
-        # зарыбим 2 пустых бассейна, в 1 басс пойдет mainValue рыбы одной массы, в другой 2 * mainValue
-        standartPoolNumber = self._find_empty_pool_with_max_start_mass()
-        self.pools[standartPoolNumber].add_new_biomass(mainValue, self.pools[standartPoolNumber].startMass,
-                                                       currentMaxIndexFry, startDate + date.timedelta(amountDays))
-        currentMaxIndexFry += 1
-        overflowingPoolIndex = self._find_pool_with_this_amount_fish(0)
-        self.pools[overflowingPoolIndex].add_new_biomass(2 * mainValue, self.pools[overflowingPoolIndex].startMass,
-                                                       currentMaxIndexFry, startDate + date.timedelta(amountDays))
-        currentMaxIndexFry += 1
-
-        print('Добавим ', mainValue, ' штук рыбы в ', standartPoolNumber,
-              ' бассейн  ', startDate + date.timedelta(amountDays))
-        print('Добавим ', 2 * mainValue, ' штук рыбы в ', overflowingPoolIndex,
-              ' бассейн  ', startDate + date.timedelta(amountDays))
-        print()
-        self.print_info(3)
-
-        # вырастим и продадим рыбу в 2-ух бассейнах
-        numbersPools = self._find_pools_with_this_indexFry(currentMinIndexFry)
-        poolWithMinAverageMass = self._find_pool_with_min_averageMass(numbersPools)
-        amountDays += self.count_how_many_days_you_need_to_work_and_do_it(poolWithMinAverageMass,
-                                                                          startDate + date.timedelta(amountDays))
-        currentMinIndexFry += 1
-
-        print('продадим всю рыбу из ', numbersPools, ' бассейнов ', startDate + date.timedelta(amountDays))
-        print()
-        self.print_info(3)
-
-        # пересадим половину рыбы из переполненного басса в пустой, в другой добавим свежей рыбы
-
-        emptyPoolIndex = self._find_empty_pool_with_max_start_mass()
-        overflowingPoolIndex = self._find_pool_with_this_amount_fish(mainValue * 2)
-        print(emptyPoolIndex, overflowingPoolIndex)
-        self.move_fish_from_one_pool_to_another(overflowingPoolIndex, emptyPoolIndex, mainValue)
-        print('переместим рыбу из ', overflowingPoolIndex, ' бассейна в', emptyPoolIndex,
-              ' и изменим индекс зарыбления в пустом бассейне ', startDate + date.timedelta(amountDays))
-
-        overflowingPoolIndex = self._find_pool_with_this_amount_fish(0)
-        self.pools[overflowingPoolIndex].add_new_biomass(2 * mainValue, self.pools[overflowingPoolIndex].startMass,
-                                                       currentMaxIndexFry, startDate + date.timedelta(amountDays))
-        currentMaxIndexFry += 1
-
-
-
-        print('Добавим ', 2 * mainValue, ' штук рыбы в ', overflowingPoolIndex,
-              ' бассейн  ', startDate + date.timedelta(amountDays))
-        print()
-        self.print_info(3)
-
-        # вырастим и продадим рыбу в одном бассейне
-        numbersPools = self._find_pools_with_this_indexFry(currentMinIndexFry)
-        poolWithMinAverageMass = self._find_pool_with_min_averageMass(numbersPools)
-        amountDays += self.count_how_many_days_you_need_to_work_and_do_it(poolWithMinAverageMass,
-                                                                          startDate + date.timedelta(amountDays))
-        currentMinIndexFry += 1
-        print('продадим всю рыбу из ', numbersPools, ' бассейнов ', startDate + date.timedelta(amountDays))
-        print()
-        self.print_info(3)
-
-        return [mainValue, amountDays, currentMinIndexFry, currentMaxIndexFry]
-
-    def main_work(self, startDate, endDate, masses, reserve):
-        resultStartScript = self.start_script(masses, reserve, startDate)
-        print()
-        numerMainScrit = 1
-        print('Начинается ', numerMainScrit, ' main_script!!!!!!!!!!!!!!')
-        print()
-        resultMainScript = self.main_script(resultStartScript[0], resultStartScript[1], startDate, 3, 5)
-        amountDays = resultMainScript[1]
-        allDays = (endDate - startDate).days
-        while (amountDays < allDays):
+        numberMainScript = 2
+        while (day < endDate):
+            print('Начинается main_script1 в ', numberMainScript, ' раз!!!!!!!!!!!!!!!!!!!!!!!!')
             print()
-            numerMainScrit += 1
-            print('Начинается ', numerMainScrit, ' main_script!!!!!!!!!!!!!!')
-            print()
-            # [mainValue, amountDays, currentMinIndexFry, currentMaxIndexFry]
-            resultMainScript = self.main_script(resultMainScript[0], resultMainScript[1], startDate,
-                                                resultMainScript[2], resultMainScript[3])
-            amountDays = resultMainScript[1]
+            numberMainScript += 1
+            # [mainValue, day, currentIndex]
+            resultMainScript = self.main_script1(resultMainScript[0],
+                                                 resultMainScript[1],
+                                                 resultMainScript[2])
+            day = resultMainScript[1]
 
         # подсчетаем выручку, расходы и прибыль
         print()
         year = 365
         startDay = startDate
         endDay = date.date(startDay.year + 1, startDay.month, startDay.day)
+        self._calculate_deposits_for_depreciation_equipment()
         if (endDay > endDate):
             endDay = endDate
         while (endDay <= endDate):
@@ -809,12 +846,7 @@ class CWSD():
             endDay = date.date(startDay.year + 1, startDay.month, startDay.day)
             print()
 
-        for i in range(self.amountGroups):
-            # [day, amountSoldFish, soldBiomass, revenue]
-            print(self.pools[i].arraySoldFish)
-            print()
-
-
+        totalProfit = self._calculate_profit(startDate, endDate)
 
 class Opimization():
     _dllArrayFish = 0
@@ -1016,9 +1048,9 @@ print(result3)
 '''
 
 masses = [100, 70, 50, 20]
-cwsd = CWSD(5, masses, 4, 4)
+cwsd = CWSD(5, masses,  50000, 2, 4, 4)
 
-cwsd.main_work(date.date.today(), date.date(2023, 5, 1), masses, 20)
+cwsd.main_work1(date.date.today(), date.date(2028, 1, 1), masses, 20)
 
 # проверка total_daily_work
 '''
