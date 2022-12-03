@@ -470,11 +470,17 @@ class CWSD():
     feedPrice = 260
     onePoolSquare = 0
     pools = list()
-    profit = list()
     salary = 50000
     amountWorkers = 2
     percentageIncomeOnDepreciationEquipment = 10
-    arrayDepositsForDepreciationEquipment = list()
+    profit = list()
+    feedings = list()
+    fries = list()
+    rents = list()
+    salaries = list()
+    elecrtricity = list()
+    revenues = list()
+    arrayDepreciationEquipment = list()
 
 
     def __init__(self, poolSquare, masses, salary=50000, amountWorkers=2,
@@ -483,7 +489,6 @@ class CWSD():
                  costElectricityPerHour=3.17, temperature=21, percentageIncomeOnDepreciationEquipment=20):
         self.salary = salary
         self.percentageIncomeOnDepreciationEquipment = percentageIncomeOnDepreciationEquipment
-        self.arrayDepositsForDepreciationEquipment = list()
         self.amountWorkers = amountWorkers
         self.onePoolSquare = poolSquare
         self.amountGroups = amountGroups
@@ -495,12 +500,19 @@ class CWSD():
         self.equipmentCapacity = equipmentCapacity
         self.feedPrice = feedPrice
         self.pools = list()
-        self.profit = list()
-        self.arrayDepreciationEquipment = 0
 
         for i in range(amountPools):
             pool = Pool(poolSquare, masses[i])
             self.pools.append(pool)
+
+        self.profit = list()
+        self.feedings = list()
+        self.fries = list()
+        self.rents = list()
+        self.salaries = list()
+        self.elecrtricity = list()
+        self.revenues = list()
+        self.arrayDepreciationEquipment = list()
 
     def add_biomass_in_pool(self, poolNumber, amountFishes, mass, newIndex, date):
         self.pools[poolNumber].add_new_biomass(amountFishes, mass, newIndex, date)
@@ -547,49 +559,6 @@ class CWSD():
         print('Будет куплено малька на ', fryCost, 'p')
 
         return [feedCost, fryCost, feedCost + fryCost]
-
-    def _calculate_deposits_for_depreciation_equipment(self):
-        # [day, amountSoldFish, soldBiomass, revenue]
-        for i in range(self.amountGroups):
-            for j in range(len(self.pools[i].arraySoldFish)):
-                x = self.pools[i].arraySoldFish[j][3] * self.percentageIncomeOnDepreciationEquipment / 100
-                self.arrayDepositsForDepreciationEquipment.append([self.pools[i].arraySoldFish[j][0], x])
-
-    def _calculate_safe_deposits_in_period(self, startDate, endDate):
-        result = 0
-
-        for i in range(len(self.arrayDepositsForDepreciationEquipment)):
-            if (startDate <= self.arrayDepositsForDepreciationEquipment[i][0] <= endDate):
-                result += self.arrayDepositsForDepreciationEquipment[i][1]
-
-        print('За этот период на амортизацию оборудования будет отложено ', result, 'p')
-
-        return result
-
-    def _calculate_profit(self, startingDate, endingDate):
-        totalRevenue = 0
-        totalSoldBiomass = 0
-        for i in range(self.amountPools):
-            #[day, amountSoldFish, soldBiomass, revenue]
-            start = 0
-            while (startingDate > self.pools[i].arraySoldFish[start][0]):
-                start += 1
-            end = start
-            while(self.pools[i].arraySoldFish[end][0] < endingDate):
-                end += 1
-            for j in range(start, end):
-                totalRevenue += self.pools[i].arraySoldFish[j][3]
-                totalSoldBiomass += self.pools[i].arraySoldFish[j][2]
-        print('С ', startingDate, ' по ', endingDate, ' будет продано ',
-              totalSoldBiomass, ' кг, выручка составит ', totalRevenue, 'p')
-
-        bioCost = self._calculate_biological_costs(startingDate, endingDate)
-        techCost = self._calculate_technical_costs(startingDate, endingDate)
-        totalRevenue -= bioCost[2] + techCost[2]
-        totalRevenue -= self._calculate_safe_deposits_in_period(startingDate, endingDate)
-        print('Чистая прибыль (без учета тепла, налогов и заработной платы) составит ',
-              totalRevenue, 'p')
-        return totalRevenue
 
     def count_how_many_days_you_need_to_work_and_do_it(self, poolNumber, startDay):
         amountDaysForWork = self.pools[poolNumber].calculate_when_fishArray_will_be_sold(
@@ -833,20 +802,78 @@ class CWSD():
             day = resultMainScript[1]
 
         # подсчетаем выручку, расходы и прибыль
-        print()
-        year = 365
-        startDay = startDate
-        endDay = date.date(startDay.year + 1, startDay.month, startDay.day)
-        self._calculate_deposits_for_depreciation_equipment()
-        if (endDay > endDate):
-            endDay = endDate
-        while (endDay <= endDate):
-            self._calculate_profit(startDay, endDay)
-            startDay = endDay
-            endDay = date.date(startDay.year + 1, startDay.month, startDay.day)
-            print()
+        self.calculate_all_casts_and_profits_for_all_period(startDate, endDate)
 
-        totalProfit = self._calculate_profit(startDate, endDate)
+    def show_all_information_every_month(self, startDate, endDate):
+        amountMonths = int((endDate - startDate) / 30) + 1
+
+    def _calculate_end_date_of_month(self, startDate):
+        result = startDate
+        while ((result.day != startDate.day) or
+               (result.month == startDate.month)):
+            result += date.timedelta(1)
+        return result
+
+    def _calculate_something_in_certain_period(self, array, startDate, endDate):
+        result = 0
+        for i in range(len(array)):
+            if (startDate <= array[i][0] <= endDate):
+                result += array[i][1]
+
+        return result
+
+    def calculate_all_casts_and_profits_for_all_period(self, startDate, endDate):
+        for i in range(self.amountGroups):
+            for j in range(len(self.pools[i].feeding)):
+                # [day, todayFeedMass]
+                self.feedings.append([self.pools[i].feeding[j][0],
+                                      self.pools[i].feeding[j][1] * self.feedPrice])
+            for j in range(len(self.pools[i].arrayFryPurchases)):
+                # [date, amountFishes, averageMass, totalPrice]
+                self.fries.append([self.pools[i].arrayFryPurchases[j][0],
+                                  self.pools[i].arrayFryPurchases[j][3]])
+            for j in range(len(self.pools[i].arraySoldFish)):
+                # [day, amountSoldFish, soldBiomass, revenue]
+                self.revenues.append([self.pools[i].arraySoldFish[j][0],
+                                      self.pools[i].arraySoldFish[j][3]])
+
+        startMonth = startDate
+        endMonth = self._calculate_end_date_of_month(startMonth)
+        while (endMonth <= endDate):
+            self.rents.append([endMonth, self.rent])
+            self.salaries.append([endMonth, self.amountWorkers * self.salary])
+            amountDaysInThisMonth = (endMonth - startMonth).days
+            self.elecrtricity.append([endMonth,
+                                      amountDaysInThisMonth * 24 * self.equipmentCapacity])
+            startMonth = endMonth
+            endMonth = self._calculate_end_date_of_month(startMonth)
+
+        startMonth = startDate
+        endMonth = self._calculate_end_date_of_month(startMonth)
+        monthRevenue = 0
+        monthBioCost = 0
+        monthTechCost = 0
+        while (endMonth <= endDate):
+            monthRevenue += self._calculate_something_in_certain_period(self.revenues, startMonth, endMonth)
+            monthBioCost += self._calculate_something_in_certain_period(self.feedings, startMonth, endMonth)
+            monthBioCost += self._calculate_something_in_certain_period(self.fries, startMonth, endMonth)
+            monthTechCost += self._calculate_something_in_certain_period(self.rents, startMonth, endMonth)
+            monthTechCost += self._calculate_something_in_certain_period(self.salaries, startMonth, endMonth)
+            monthTechCost += self._calculate_something_in_certain_period(self.elecrtricity, startMonth, endMonth)
+            monthRevenue -= monthBioCost + monthTechCost
+            if (monthRevenue > 0):
+                x = monthRevenue * self.percentageIncomeOnDepreciationEquipment / 100
+                monthRevenue -= x
+                self.arrayDepreciationEquipment.append([endMonth, x])
+                self.profit.append([endMonth, monthRevenue])
+
+            startMonth = endMonth + date.timedelta(1)
+            endMonth = self._calculate_end_date_of_month(startMonth) - date.timedelta(1)
+
+            monthRevenue = 0
+            monthBioCost = 0
+            monthTechCost = 0
+
 
 class Opimization():
     _dllArrayFish = 0
@@ -1048,7 +1075,7 @@ print(result3)
 '''
 
 masses = [100, 70, 50, 20]
-cwsd = CWSD(5, masses,  50000, 2, 4, 4)
+cwsd = CWSD(10, masses,  50000, 2, 4, 4)
 
 cwsd.main_work1(date.date.today(), date.date(2028, 1, 1), masses, 20)
 
