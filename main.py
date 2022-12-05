@@ -456,6 +456,7 @@ class Pool():
 
 
 class CWSD():
+    costCWSD = 3000000
     amountPools = 0
     amountGroups = 0
     # температура воды
@@ -473,7 +474,6 @@ class CWSD():
     salary = 50000
     amountWorkers = 2
     percentageIncomeOnDepreciationEquipment = 10
-    profit = list()
     feedings = list()
     fries = list()
     rents = list()
@@ -481,12 +481,15 @@ class CWSD():
     elecrtricity = list()
     revenues = list()
     arrayDepreciationEquipment = list()
+    budget = list()
 
 
     def __init__(self, poolSquare, masses, salary=50000, amountWorkers=2,
                  amountPools=8, amountGroups=4, fishPrice=1000,
                  feedPrice=260, equipmentCapacity=5.5, rent=70000,
-                 costElectricityPerHour=3.17, temperature=21, percentageIncomeOnDepreciationEquipment=20):
+                 costElectricityPerHour=3.17, temperature=21, percentageIncomeOnDepreciationEquipment=20,
+                 costCWSD=3000000):
+        self.costCWSD=3000000
         self.salary = salary
         self.percentageIncomeOnDepreciationEquipment = percentageIncomeOnDepreciationEquipment
         self.amountWorkers = amountWorkers
@@ -513,6 +516,7 @@ class CWSD():
         self.elecrtricity = list()
         self.revenues = list()
         self.arrayDepreciationEquipment = list()
+        self.budget = list()
 
     def add_biomass_in_pool(self, poolNumber, amountFishes, mass, newIndex, date):
         self.pools[poolNumber].add_new_biomass(amountFishes, mass, newIndex, date)
@@ -803,9 +807,36 @@ class CWSD():
 
         # подсчетаем выручку, расходы и прибыль
         self.calculate_all_casts_and_profits_for_all_period(startDate, endDate)
+        self.budget.append([startDate, -self.costCWSD])
+        self.calculate_budget(startDate, endDate)
+        for i in range(len(self.budget)):
+            print(self.budget[i])
 
     def show_all_information_every_month(self, startDate, endDate):
-        amountMonths = int((endDate - startDate) / 30) + 1
+        startMonth = startDate
+        endMonth = self._calculate_end_date_of_month(startMonth)
+        numberMonth = 1
+        while (endMonth < endDate):
+            bioCast_feed = self._calculate_something_in_certain_period(self.feedings, startMonth, endMonth)
+            bioCast_fry = self._calculate_something_in_certain_period(self.fries, startMonth, endMonth)
+            techCast_rent = self._calculate_something_in_certain_period(self.rents, startMonth, endMonth)
+            techCast_salary = self._calculate_something_in_certain_period(self.salaries, startMonth, endMonth)
+            techCast_electricity = self._calculate_something_in_certain_period(self.elecrtricity, startMonth, endMonth)
+            techCast_depreciationEquipment = self._calculate_something_in_certain_period(
+                self.arrayDepreciationEquipment,
+                startMonth, endMonth)
+            profit = self._calculate_something_in_certain_period(self.profit, startMonth, endMonth)
+            print(endMonth, ' ', numberMonth, ' месяц')
+            print('траты на технику (аренда, зарплата, електричество): ',
+                  techCast_rent + techCast_salary + techCast_electricity)
+            print('траты на мальков: ', bioCast_fry)
+            print('траты на корм: ', bioCast_feed)
+            print('Отложено на амортизацию оборудования: ', techCast_depreciationEquipment)
+            print('Чистая прибыль: ', profit)
+            print('_____________________________________________________________')
+            numberMonth += 1
+            startMonth = endMonth + date.timedelta(1)
+            endMonth = self._calculate_end_date_of_month(startMonth) - date.timedelta(1)
 
     def _calculate_end_date_of_month(self, startDate):
         result = startDate
@@ -848,31 +879,34 @@ class CWSD():
             startMonth = endMonth
             endMonth = self._calculate_end_date_of_month(startMonth)
 
-        startMonth = startDate
-        endMonth = self._calculate_end_date_of_month(startMonth)
-        monthRevenue = 0
-        monthBioCost = 0
-        monthTechCost = 0
-        while (endMonth <= endDate):
-            monthRevenue += self._calculate_something_in_certain_period(self.revenues, startMonth, endMonth)
-            monthBioCost += self._calculate_something_in_certain_period(self.feedings, startMonth, endMonth)
-            monthBioCost += self._calculate_something_in_certain_period(self.fries, startMonth, endMonth)
-            monthTechCost += self._calculate_something_in_certain_period(self.rents, startMonth, endMonth)
-            monthTechCost += self._calculate_something_in_certain_period(self.salaries, startMonth, endMonth)
-            monthTechCost += self._calculate_something_in_certain_period(self.elecrtricity, startMonth, endMonth)
-            monthRevenue -= monthBioCost + monthTechCost
-            if (monthRevenue > 0):
-                x = monthRevenue * self.percentageIncomeOnDepreciationEquipment / 100
-                monthRevenue -= x
-                self.arrayDepreciationEquipment.append([endMonth, x])
-                self.profit.append([endMonth, monthRevenue])
+    def calculate_budget(self, startDate, endDate):
+        day = startDate
+        amountDays = (endDate - startDate).days
+        amountItemsInBudeget = 1
+        for i in range(amountDays):
+            revenue = self._find_event_in_this_day(day, self.revenues)
+            techCost = self._find_event_in_this_day(day, self.rents) * (-1)
+            techCost -= self._find_event_in_this_day(day, self.salaries)
+            techCost -= self._find_event_in_this_day(day, self.elecrtricity)
+            bioCost = self._find_event_in_this_day(day, self.feedings) * (-1)
+            bioCost -= self._find_event_in_this_day(day, self.fries)
+            if ((revenue != 0) or (techCost != 0) or (bioCost != 0)):
+                self.budget.append([day, self.budget[amountItemsInBudeget - 1][1] + revenue + techCost + bioCost])
+            if ((day.day == startDate.day) and (day.month == startDate.month) and (day.year != startDate.year)):
+                x = self.budget[amountItemsInBudeget][1] * self.percentageIncomeOnDepreciationEquipment / 100
+                self.budget[amountItemsInBudeget][1] -= x
+                self.arrayDepreciationEquipment.append([day, x])
+                print('Прошел год, отложим процент на амортизацию оборудования ', x)
+            day += date.timedelta(1)
+            amountItemsInBudeget += 1
 
-            startMonth = endMonth + date.timedelta(1)
-            endMonth = self._calculate_end_date_of_month(startMonth) - date.timedelta(1)
+    def _find_event_in_this_day(self, day, array):
+        result = 0
+        for i in range(len(array)):
+            if (array[i][0] == day):
+                result += array[i][1]
 
-            monthRevenue = 0
-            monthBioCost = 0
-            monthTechCost = 0
+        return result
 
 
 class Opimization():
@@ -1075,7 +1109,7 @@ print(result3)
 '''
 
 masses = [100, 70, 50, 20]
-cwsd = CWSD(10, masses,  50000, 2, 4, 4)
+cwsd = CWSD(10, masses,  50000, 2, 4, 4, 850, 260, 5.5, 70000, 3.17, 21, 5, 3000000)
 
 cwsd.main_work1(date.date.today(), date.date(2028, 1, 1), masses, 20)
 
